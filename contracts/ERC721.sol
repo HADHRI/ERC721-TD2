@@ -7,6 +7,7 @@ import "../utils/WhitelistedRole.sol";
 contract ERC721 is Context,WhitelistedRole{
  using Counters for Counters.Counter;
 using Address for address;
+ 
 
  // Equals to `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
     // which can be also obtained as `IERC721Receiver(0).onERC721Received.selector`
@@ -28,6 +29,24 @@ using Address for address;
   event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
   event BreederAdded(address indexed breeder);
 
+    enum AnimalType { Cow, Horse, Chicken, Pig, Sheep, Donkey, Rabbit, Duck }
+    enum Age { Young, Adult, Old }
+    enum Color { Brown, Black, White, Red, Blue }
+
+    struct Animal {
+        uint id;
+        AnimalType race;
+        Age age;
+        Color color;
+        uint rarity;
+        bool isMale;
+        bool canBreed;
+        }
+    //Animal ID
+    uint private _currentId;
+    mapping (address => Animal[]) private _animalsOfOwner;
+    mapping (uint => Animal) private _animalsById;
+    mapping (uint => address) private _animalToOwner;
   
  /**
      * @dev Gets the balance of the specified address.
@@ -133,6 +152,36 @@ using Address for address;
         addWhitelisted(account);  
          emit BreederAdded(account);
     }
+
+    //This function will declare an Animal for onlyBreeder (it means in the whiteList)
+    function declareAnimal(address to, AnimalType race, Age age, Color color, uint rarity, bool isMale, bool canBreed)
+        public onlyWhitelistAdmin returns (bool) {
+        _currentId++;
+        Animal memory animal = Animal(_currentId, race, age, color, rarity, isMale, canBreed);
+        _animalsOfOwner[msg.sender].push(animal);
+        _animalsById[_currentId] = animal;
+        _animalToOwner[_currentId] = to;
+        mintToken(to, _currentId);
+        return true;
+    }
+
+     function mintToken(address to, uint tokenId) public {
+        _mint(to, tokenId);
+    }
+     /**
+     * @dev Internal function to mint a new token.
+     * Reverts if the given token ID already exists.
+     * @param to The address that will own the minted token
+     * @param tokenId uint256 ID of the token to be minted
+     */
+    function _mint(address to, uint tokenId) internal {
+        require(to != address(0), "address 0x0");
+        require(!_exists(tokenId), "token already exists");
+        _tokenOwner[tokenId] = to;
+        _ownedTokensCount[to].increment();
+        emit Transfer(address(0), to, tokenId);
+    }
+
 
      /**
      * @dev Safely transfers the ownership of a given token ID to another address
