@@ -28,6 +28,7 @@ using Address for address;
   event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
   event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
   event BreederAdded(address indexed breeder);
+  event AnimalDeleted(address indexed owner, uint tokenId);
 
     enum AnimalType { Cow, Horse, Chicken, Pig, Sheep, Donkey, Rabbit, Duck }
     enum Age { Young, Adult, Old }
@@ -42,12 +43,17 @@ using Address for address;
         bool isMale;
         bool canBreed;
         }
+    
     //Animal ID
     uint private _currentId;
     mapping (address => Animal[]) private _animalsOfOwner;
     mapping (uint => Animal) private _animalsById;
     mapping (uint => address) private _animalToOwner;
-  
+     
+    modifier onlyOwnerOfAnimal(uint id) {
+        require(msg.sender == _animalToOwner[id], "Not animal owner");
+        _;
+    }
  /**
      * @dev Gets the balance of the specified address.
      * @param owner address to query the balance of
@@ -165,8 +171,48 @@ using Address for address;
         return true;
     }
 
+    // This function is reponsible for deleting an Animal but only the owner of the animal can do it 
+      function deadAnimal(uint id) public onlyOwnerOfAnimal(id) {
+        burnToken(msg.sender, id);
+        _removeFromArray(msg.sender, id);
+        delete _animalsById[id];
+        delete _animalToOwner[id];
+        emit AnimalDeleted(msg.sender, id);
+    }
+
      function mintToken(address to, uint tokenId) public {
         _mint(to, tokenId);
+    }
+     /**
+     * @dev Internal function to burn a specific token.
+     * Reverts if the token does not exist.
+     * Deprecated, use {_burn} instead.
+     * @param owner owner of the token to burn
+     * @param tokenId uint256 ID of the token being burned
+     */
+    function burnToken(address owner, uint tokenId) public {
+        _burn(owner, tokenId);
+    }
+    //This function is reponsible for removing an id of an adress
+       function _removeFromArray(address owner, uint id) private {
+        uint size = _animalsOfOwner[owner].length;
+        for (uint index = 0; index < size; index++) {
+            Animal storage animal = _animalsOfOwner[owner][index];
+            if (animal.id == id) {
+                if (index < size - 1) {
+                    _animalsOfOwner[owner][index] = _animalsOfOwner[owner][size - 1];
+                }
+                delete _animalsOfOwner[owner][size - 1];
+            }
+        }
+    }
+
+     function _burn(address _address, uint tokenId) internal {
+        require(ownerOf(tokenId) == _address, "not owner of token");
+        _clearApproval(tokenId);
+        _ownedTokensCount[_address].decrement();
+        _tokenOwner[tokenId] = address(0);
+        emit Transfer(_address, address(0), tokenId);
     }
      /**
      * @dev Internal function to mint a new token.
