@@ -3,7 +3,8 @@ import "../utils/Counters.sol";
 import "../utils/IERC721Receiver.sol";
 import "../utils/Context.sol";
 import "../utils/Adress.sol";
-contract ERC721 is Context{
+import "../utils/WhitelistedRole.sol";
+contract ERC721 is Context,WhitelistedRole{
  using Counters for Counters.Counter;
 using Address for address;
 
@@ -25,6 +26,9 @@ using Address for address;
   event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
   event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
   event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+  event BreederAdded(address indexed breeder);
+
+  
  /**
      * @dev Gets the balance of the specified address.
      * @param owner address to query the balance of
@@ -123,6 +127,12 @@ using Address for address;
         _operatorApprovals[_msgSender()][to] = approved;
         emit ApprovalForAll(_msgSender(), to, approved);
     }
+    //Adding a breeder to whiteList but only by a person in the whitelistAdmin
+    function registerBreeder(address account) public onlyWhitelistAdmin { 
+        require(isWhitelisted(account), "Breeder Already added");
+        addWhitelisted(account);  
+         emit BreederAdded(account);
+    }
 
      /**
      * @dev Safely transfers the ownership of a given token ID to another address
@@ -194,8 +204,6 @@ using Address for address;
         address owner = _tokenOwner[tokenId];
         return owner != address(0);
     }
-
-     
         /**
      * @dev Internal function to transfer ownership of a given token ID to another address.
      * As opposed to {transferFrom}, this imposes no restrictions on msg.sender.
