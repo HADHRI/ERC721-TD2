@@ -6,8 +6,8 @@ import "../utils/Adress.sol";
 import "../utils/WhitelistedRole.sol";
 contract ERC721 is Context,WhitelistedRole{
  using Counters for Counters.Counter;
-using Address for address;
- 
+ using Address for address;
+ using SafeMath for uint256;
 
  // Equals to `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
     // which can be also obtained as `IERC721Receiver(0).onERC721Received.selector`
@@ -29,6 +29,7 @@ using Address for address;
   event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
   event BreederAdded(address indexed breeder);
   event AnimalDeleted(address indexed owner, uint tokenId);
+  event NewBorn(address indexed owner, uint tokenId);
 
     enum AnimalType { Cow, Horse, Chicken, Pig, Sheep, Donkey, Rabbit, Duck }
     enum Age { Young, Adult, Old }
@@ -178,6 +179,43 @@ using Address for address;
         delete _animalsById[id];
         delete _animalToOwner[id];
         emit AnimalDeleted(msg.sender, id);
+    }
+
+
+    function breedAnimals(uint senderId, uint targetId) public onlyWhitelistAdmin onlyOwnerOfAnimal(senderId) returns (bool) {
+        _checkingMinimumTwoCharacteristic(senderId,targetId);
+        _creatingTheOffSpring(msg.sender, senderId, targetId);
+        emit NewBorn(msg.sender, _currentId);
+        return true;
+    }
+     // In order to know if a breeder can use our token , we call this function , require minimum two characteristic
+    function _checkingMinimumTwoCharacteristic(uint senderId, uint targetId) private view {
+        require(getApproved(targetId) == _animalToOwner[senderId], "target animal not approved");
+        require(_sameRace(senderId, targetId), "not same race");
+        require(_canBreed(senderId, targetId), "can't breed");
+        require(_breedMaleAndFemale(senderId, targetId), "can't breed");
+    }
+
+    function _creatingTheOffSpring(address to, uint senderId, uint targetId) private {
+        AnimalType race = _animalsById[senderId].race;
+        Age age = Age.Young;
+        Color color = _animalsById[senderId].color;
+        uint rarity = _animalsById[senderId].rarity.add(_animalsById[targetId].rarity);
+        bool isMale = _animalsById[targetId].isMale;
+        bool canBreed = false;
+        declareAnimal(to, race, age, color, rarity, isMale, canBreed);
+    }
+    function _sameRace(uint id1, uint id2) private view returns (bool) {
+        return (_animalsById[id1].race == _animalsById[id2].race);
+    }
+    function _breedMaleAndFemale(uint id1, uint id2) private view returns (bool) {
+        if ((_animalsById[id1].isMale) && (!_animalsById[id2].isMale)) return true;
+        if ((!_animalsById[id1].isMale) && (_animalsById[id2].isMale)) return true;
+        return false;
+    }
+
+    function _canBreed(uint id1, uint id2) private view returns (bool) {
+        return (_animalsById[id1].canBreed && _animalsById[id2].canBreed);
     }
 
      function mintToken(address to, uint tokenId) public {
