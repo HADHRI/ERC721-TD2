@@ -20,6 +20,10 @@ contract ERC721 is Context,WhitelistedRole{
 
  // Mapping from token ID to approved address
     mapping (uint256 => address) private _tokenApprovals;
+// Mapping for auctionedAnimals
+    mapping (uint => bool) private _auctionedAnimals;
+
+    mapping (uint => Auction) private _auctions;
 
 
  // Mapping from owner to operator approvals
@@ -30,6 +34,10 @@ contract ERC721 is Context,WhitelistedRole{
   event BreederAdded(address indexed breeder);
   event AnimalDeleted(address indexed owner, uint tokenId);
   event NewBorn(address indexed owner, uint tokenId);
+  event AuctionCreated(address indexed seller, uint tokenId);
+event AuctionClaimed(address indexed claimer, uint tokenId);
+  event NewBid(address indexed bidder, uint tokenId, uint price);
+  event AnimalTransfered(address indexed from, address indexed to, uint tokenId);
 
     enum AnimalType { Cow, Horse, Chicken, Pig, Sheep, Donkey, Rabbit, Duck }
     enum Age { Young, Adult, Old }
@@ -44,6 +52,14 @@ contract ERC721 is Context,WhitelistedRole{
         bool isMale;
         bool canBreed;
         }
+    struct Auction {
+        address seller;
+        address lastBidder;
+        uint startDate;
+        uint initialPrice;
+        uint priceToBid;
+        uint bestOffer;
+    }
     
     //Animal ID
     uint private _currentId;
@@ -53,6 +69,10 @@ contract ERC721 is Context,WhitelistedRole{
      
     modifier onlyOwnerOfAnimal(uint id) {
         require(msg.sender == _animalToOwner[id], "Not animal owner");
+        _;
+    }
+     modifier onlyAuctionedAnimal(uint id) {
+        require(_auctionedAnimals[id], "not auctioned animal");
         _;
     }
  /**
@@ -155,7 +175,7 @@ contract ERC721 is Context,WhitelistedRole{
     }
     //Adding a breeder to whiteList but only by a person in the whitelistAdmin
     function registerBreeder(address account) public onlyWhitelistAdmin { 
-        require(isWhitelisted(account), "Breeder Already added");
+        require(!isWhitelisted(account), "Breeder Already added");
         addWhitelisted(account);  
          emit BreederAdded(account);
     }
@@ -218,6 +238,66 @@ contract ERC721 is Context,WhitelistedRole{
         return (_animalsById[id1].canBreed && _animalsById[id2].canBreed);
     }
 
+    //This function will create an Auction that Will stay 2 days as mentionned
+    function createAuction(uint id, uint initialPrice) public onlyWhitelistAdmin onlyOwnerOfAnimal(id) {
+        require(!_auctionedAnimals[id], "already auctioned");
+        _auctionedAnimals[id] = true;
+        uint priceToBid = initialPrice.mul(_animalsById[id].rarity);
+        _auctions[id] = Auction(msg.sender, address(0), now, initialPrice, priceToBid, 0);
+        emit AuctionCreated(msg.sender, id);
+    } 
+    //Function to bid an Auctioned Animals
+     function bidOnAuction(uint id, uint value) public onlyWhitelistAdmin {
+        require(msg.sender != _auctions[id].seller, "You bid on your own auction");
+        require(_auctionedAnimals[id], "not an auctioned animal");
+        require(value == _auctions[id].priceToBid, "not right price");
+        _transferTokenBid(msg.sender, id, value);
+        _updateAuction(msg.sender, id, value);
+        emit NewBid(msg.sender, id, value);
+    }
+       function claimAuction(uint id) public onlyWhitelistAdmin onlyAuctionedAnimal(id) {
+        require(_auctions[id].lastBidder == msg.sender, "you are not the last bidder");
+        require(_auctions[id].startDate + 2 days <= now, "2 days have not yet passed");
+        _processRetrieveAuction(id);
+        emit AuctionClaimed(msg.sender, id);
+    }
+    // This function will retreive the auction and will transfer the animal 
+    function _processRetrieveAuction(uint id) private {
+        Auction storage auction = _auctions[id];
+        if (auction.lastBidder != address(0)) {
+            _transferAnimal(auction.seller, auction.lastBidder, id);
+            _auctionedAnimals[id] = false;
+            delete _auctions[id];
+        }  }
+    // This methode is responsible for transfering the animal from the sender to the receiver 
+    function _transferAnimal(address sender, address receiver, uint id) private onlyWhitelistAdmin onlyOwnerOfAnimal(id) {
+        require(_animalsById[id].id != 0, "not animal");
+        require(!_auctionedAnimals[id], "auctioned animal");
+        _transferFrom(sender, receiver, id);
+        _removeFromArray(sender, id);
+        _animalsOfOwner[receiver].push(_animalsById[id]);
+        _animalToOwner[id] = receiver;
+        emit AnimalTransfered(sender, receiver, id);
+    }
+    function _transferTokenBid(address newBidder, uint id, uint value) private {
+        Auction memory auction = _auctions[id];
+        if (auction.lastBidder != address(0)) {
+            transferFrom(auction.seller, auction.lastBidder, auction.bestOffer);
+        } else {
+            transferFrom(newBidder, auction.seller, value);
+        }
+    }
+
+     function _updateAuction(address newBidder, uint id, uint value) private {
+        _auctions[id].lastBidder = newBidder;
+        _auctions[id].priceToBid = _calculatepriceToBid(id);
+        _auctions[id].bestOffer = value;
+    }
+
+
+    function _calculatepriceToBid(uint id) private view returns (uint) {
+        return _auctions[id].priceToBid.mul(_animalsById[id].rarity);
+    }
      function mintToken(address to, uint tokenId) public {
         _mint(to, tokenId);
     }
