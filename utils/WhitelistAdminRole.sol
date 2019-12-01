@@ -1,7 +1,7 @@
 pragma solidity >=0.4.21 <0.6.0;
 import "./Roles.sol";
 import "./Context.sol";
-contract WhitelistAdminRole is Context {
+contract WhitelistAdminRole is Context { 
     using Roles for Roles.Role;
 
     event WhitelistAdminAdded(address indexed account);

@@ -20,7 +20,7 @@ contract ERC721 is Context,WhitelistedRole{
 
  // Mapping from token ID to approved address
     mapping (uint256 => address) private _tokenApprovals;
-// Mapping for auctionedAnimals
+// Mapping for auctionedAnimalsba
     mapping (uint => bool) private _auctionedAnimals;
 
     mapping (uint => Auction) private _auctions;
@@ -174,7 +174,7 @@ event AuctionClaimed(address indexed claimer, uint tokenId);
         emit ApprovalForAll(_msgSender(), to, approved);
     }
     //Adding a breeder to whiteList but only by a person in the whitelistAdmin
-    function registerBreeder(address account) public onlyWhitelistAdmin { 
+    function registerBreeder(address account) public onlyWhitelisted { 
         require(!isWhitelisted(account), "Breeder Already added");
         addWhitelisted(account);  
          emit BreederAdded(account);
@@ -182,7 +182,7 @@ event AuctionClaimed(address indexed claimer, uint tokenId);
 
     //This function will declare an Animal for onlyBreeder (it means in the whiteList)
     function declareAnimal(address to, AnimalType race, Age age, Color color, uint rarity, bool isMale, bool canBreed)
-        public onlyWhitelistAdmin returns (bool) {
+        public onlyWhitelisted returns (bool) {
         _currentId++;
         Animal memory animal = Animal(_currentId, race, age, color, rarity, isMale, canBreed);
         _animalsOfOwner[msg.sender].push(animal);
@@ -202,7 +202,7 @@ event AuctionClaimed(address indexed claimer, uint tokenId);
     }
 
 
-    function breedAnimals(uint senderId, uint targetId) public onlyWhitelistAdmin onlyOwnerOfAnimal(senderId) returns (bool) {
+    function breedAnimals(uint senderId, uint targetId) public onlyWhitelisted onlyOwnerOfAnimal(senderId) returns (bool) {
         _checkingMinimumTwoCharacteristic(senderId,targetId);
         _creatingTheOffSpring(msg.sender, senderId, targetId);
         emit NewBorn(msg.sender, _currentId);
@@ -239,7 +239,7 @@ event AuctionClaimed(address indexed claimer, uint tokenId);
     }
 
     //This function will create an Auction that Will stay 2 days as mentionned
-    function createAuction(uint id, uint initialPrice) public onlyWhitelistAdmin onlyOwnerOfAnimal(id) {
+    function createAuction(uint id, uint initialPrice) public onlyWhitelisted onlyOwnerOfAnimal(id) {
         require(!_auctionedAnimals[id], "already auctioned");
         _auctionedAnimals[id] = true;
         uint priceToBid = initialPrice.mul(_animalsById[id].rarity);
@@ -247,7 +247,7 @@ event AuctionClaimed(address indexed claimer, uint tokenId);
         emit AuctionCreated(msg.sender, id);
     } 
     //Function to bid an Auctioned Animals
-     function bidOnAuction(uint id, uint value) public onlyWhitelistAdmin {
+     function bidOnAuction(uint id, uint value) public onlyWhitelisted {
         require(msg.sender != _auctions[id].seller, "You bid on your own auction");
         require(_auctionedAnimals[id], "not an auctioned animal");
         require(value == _auctions[id].priceToBid, "not right price");
@@ -255,7 +255,7 @@ event AuctionClaimed(address indexed claimer, uint tokenId);
         _updateAuction(msg.sender, id, value);
         emit NewBid(msg.sender, id, value);
     }
-       function claimAuction(uint id) public onlyWhitelistAdmin onlyAuctionedAnimal(id) {
+       function claimAuction(uint id) public onlyWhitelisted onlyAuctionedAnimal(id) {
         require(_auctions[id].lastBidder == msg.sender, "you are not the last bidder");
         require(_auctions[id].startDate + 2 days <= now, "2 days have not yet passed");
         _processRetrieveAuction(id);
@@ -270,7 +270,7 @@ event AuctionClaimed(address indexed claimer, uint tokenId);
             delete _auctions[id];
         }  }
     // This methode is responsible for transfering the animal from the sender to the receiver 
-    function _transferAnimal(address sender, address receiver, uint id) private onlyWhitelistAdmin onlyOwnerOfAnimal(id) {
+    function _transferAnimal(address sender, address receiver, uint id) private onlyWhitelisted onlyOwnerOfAnimal(id) {
         require(_animalsById[id].id != 0, "not animal");
         require(!_auctionedAnimals[id], "auctioned animal");
         _transferFrom(sender, receiver, id);
